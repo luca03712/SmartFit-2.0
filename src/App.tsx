@@ -12,7 +12,7 @@ import type {
   MacroTargets,
   MealCategory
 } from './types';
-import { generateMealPlan } from './utils/dietGenerator';
+import { generateWeeklyPlan, DAYS_OF_WEEK, type DayOfWeek } from './utils/dietGenerator';
 
 const DEFAULT_PROFILE: UserProfile = {
   biometrics: { age: 0, weight: 0, height: 0, gender: 'male' },
@@ -25,38 +25,43 @@ function App() {
   // Persisted state
   const [profile, setProfile] = useLocalStorage<UserProfile>('smartfit_profile', DEFAULT_PROFILE);
   const [pantryItems, setPantryItems] = useLocalStorage<PantryItem[]>('smartfit_pantry', []);
-  const [consumedMeals, setConsumedMeals] = useLocalStorage<string[]>('smartfit_consumed', []);
+  const [consumedMeals, setConsumedMeals] = useLocalStorage<Record<string, string[]>>('smartfit_consumed_weekly', {});
   const [waterIntake, setWaterIntake] = useLocalStorage<number>('smartfit_water', 0);
   const [lastResetDate, setLastResetDate] = useLocalStorage<string>('smartfit_last_reset', '');
 
   // UI State
   const [currentTab, setCurrentTab] = useState('dashboard');
 
-  // Check if we need to reset daily tracking
+  // Check if we need to reset daily tracking (water resets daily)
   const today = new Date().toISOString().split('T')[0];
   if (lastResetDate !== today) {
-    setConsumedMeals([]);
     setWaterIntake(0);
     setLastResetDate(today);
+    // Note: consumed meals persist for the week - user can manually reset
   }
 
-  // Determine workout day
-  const dayOfWeek = new Date().getDay();
-  const workoutDays = profile.lifestyle.workoutFrequency;
-  const isWorkoutDay = workoutDays > 0 && dayOfWeek > 0 && dayOfWeek <= workoutDays;
+  // Get current day of week in Italian
+  const dayIndex = new Date().getDay();
+  const todayDay = DAYS_OF_WEEK[dayIndex === 0 ? 6 : dayIndex - 1]; // Adjust Sunday
+  const todayConsumed = consumedMeals[todayDay] || [];
 
-  // Generate meal plan
-  const { meals } = useMemo(() => {
+  // Generate weekly meal plan
+  const weeklyPlan = useMemo(() => {
     if (pantryItems.length === 0 || !profile.onboardingComplete) {
-      return { meals: [], totalNutrition: { calories: 0, protein: 0, carbs: 0, fat: 0 }, warnings: [] };
+      return null;
     }
-    return generateMealPlan(pantryItems, profile.targets, isWorkoutDay);
-  }, [pantryItems, profile.targets, isWorkoutDay, profile.onboardingComplete]);
+    return generateWeeklyPlan(pantryItems, profile.targets, profile.lifestyle.workoutFrequency);
+  }, [pantryItems, profile.targets, profile.lifestyle.workoutFrequency, profile.onboardingComplete]);
 
-  // Calculate consumed nutrition from completed meals
+  // Calculate consumed nutrition for today
   const consumedNutrition = useMemo<MacroTargets>(() => {
-    const consumed = meals
-      .filter(meal => consumedMeals.includes(meal.category))
+    if (!weeklyPlan) {
+      return { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    }
+
+    const todayMeals = weeklyPlan.days[todayDay] || [];
+    const consumed = todayMeals
+      .filter(meal => todayConsumed.includes(meal.category))
       .reduce((acc, meal) => ({
         calories: acc.calories + meal.totalNutrition.calories,
         protein: acc.protein + meal.totalNutrition.protein,
@@ -65,7 +70,7 @@ function App() {
       }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
     return consumed;
-  }, [meals, consumedMeals]);
+  }, [weeklyPlan, todayDay, todayConsumed]);
 
   // Handlers
   const handleOnboardingComplete = (newProfile: UserProfile) => {
@@ -84,12 +89,13 @@ function App() {
     setPantryItems(prev => prev.filter(p => p.id !== id));
   };
 
-  const handleToggleMealConsumed = (category: MealCategory) => {
+  const handleToggleMealConsumed = (day: DayOfWeek, category: MealCategory) => {
     setConsumedMeals(prev => {
-      if (prev.includes(category)) {
-        return prev.filter(c => c !== category);
+      const dayMeals = prev[day] || [];
+      if (dayMeals.includes(category)) {
+        return { ...prev, [day]: dayMeals.filter(c => c !== category) };
       }
-      return [...prev, category];
+      return { ...prev, [day]: [...dayMeals, category] };
     });
   };
 
@@ -104,7 +110,7 @@ function App() {
   const handleResetApp = () => {
     setProfile(DEFAULT_PROFILE);
     setPantryItems([]);
-    setConsumedMeals([]);
+    setConsumedMeals({});
     setWaterIntake(0);
     setLastResetDate('');
   };
@@ -114,47 +120,51 @@ function App() {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
+  const todayMeals = weeklyPlan?.days[todayDay] || [];
+
   // Render main app
   return (
-    <div className="min-h-screen pb-20">
+    <div className="h-[100dvh] flex flex-col bg-slate-900 overflow-hidden">
       {/* Current Tab Content */}
-      {currentTab === 'dashboard' && (
-        <Dashboard
-          profile={profile}
-          consumedNutrition={consumedNutrition}
-          waterIntake={waterIntake}
-          onAddWater={handleAddWater}
-          meals={meals}
-          consumedMeals={consumedMeals}
-        />
-      )}
+      <main className="flex-1 overflow-y-auto overscroll-none">
+        {currentTab === 'dashboard' && (
+          <Dashboard
+            profile={profile}
+            consumedNutrition={consumedNutrition}
+            waterIntake={waterIntake}
+            onAddWater={handleAddWater}
+            meals={todayMeals}
+            consumedMeals={todayConsumed}
+          />
+        )}
 
-      {currentTab === 'pantry' && (
-        <Pantry
-          items={pantryItems}
-          onAddItem={handleAddPantryItem}
-          onUpdateItem={handleUpdatePantryItem}
-          onDeleteItem={handleDeletePantryItem}
-        />
-      )}
+        {currentTab === 'pantry' && (
+          <Pantry
+            items={pantryItems}
+            onAddItem={handleAddPantryItem}
+            onUpdateItem={handleUpdatePantryItem}
+            onDeleteItem={handleDeletePantryItem}
+          />
+        )}
 
-      {currentTab === 'diet' && (
-        <DietPlan
-          pantryItems={pantryItems}
-          dailyTargets={profile.targets}
-          isWorkoutDay={isWorkoutDay}
-          consumedMeals={consumedMeals}
-          onToggleMealConsumed={handleToggleMealConsumed}
-        />
-      )}
+        {currentTab === 'diet' && (
+          <DietPlan
+            pantryItems={pantryItems}
+            dailyTargets={profile.targets}
+            workoutFrequency={profile.lifestyle.workoutFrequency}
+            consumedMeals={consumedMeals}
+            onToggleMealConsumed={handleToggleMealConsumed}
+          />
+        )}
 
-      {currentTab === 'settings' && (
-        <Settings
-          profile={profile}
-          onUpdateProfile={handleUpdateProfile}
-          onResetApp={handleResetApp}
-        />
-      )}
+        {currentTab === 'settings' && (
+          <Settings
+            profile={profile}
+            onUpdateProfile={handleUpdateProfile}
+            onResetApp={handleResetApp}
+          />
+        )}
+      </main>
 
       {/* Bottom Navigation */}
       <Navigation

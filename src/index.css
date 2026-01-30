@@ -24,10 +24,20 @@ body {
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+html {
+  overflow: hidden;
+  height: 100%;
 }
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100%;
 }
 
 /* Custom scrollbar */
