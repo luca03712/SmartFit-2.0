@@ -5,8 +5,7 @@ import {
     Target,
     Dumbbell,
     Trash2,
-    Edit2,
-    Save
+    Edit2
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -205,17 +204,8 @@ export const Settings: React.FC<SettingsProps> = ({
             <Modal
                 isOpen={isEditingBiometrics}
                 onClose={() => setIsEditingBiometrics(false)}
+                onSave={handleSaveBiometrics}
                 title="Modifica Dati Fisici"
-                footer={
-                    <div className="flex gap-3">
-                        <Button variant="secondary" onClick={() => setIsEditingBiometrics(false)} className="flex-1">
-                            Annulla
-                        </Button>
-                        <Button onClick={handleSaveBiometrics} icon={<Save size={18} />} className="flex-1">
-                            Salva
-                        </Button>
-                    </div>
-                }
             >
                 <div className="space-y-4">
                     <Input
@@ -224,8 +214,9 @@ export const Settings: React.FC<SettingsProps> = ({
                         value={editedProfile.biometrics.age}
                         onChange={(e) => setEditedProfile({
                             ...editedProfile,
-                            biometrics: { ...editedProfile.biometrics, age: Number(e.target.value) }
+                            biometrics: { ...editedProfile.biometrics, age: e.target.value === '' ? 0 : Number(e.target.value) }
                         })}
+                        placeholder="30"
                         min={16}
                         max={100}
                     />
@@ -247,8 +238,9 @@ export const Settings: React.FC<SettingsProps> = ({
                         value={editedProfile.biometrics.weight}
                         onChange={(e) => setEditedProfile({
                             ...editedProfile,
-                            biometrics: { ...editedProfile.biometrics, weight: Number(e.target.value) }
+                            biometrics: { ...editedProfile.biometrics, weight: e.target.value === '' ? 0 : Number(e.target.value) }
                         })}
+                        placeholder="70"
                         step="0.1"
                         min={30}
                         max={300}
@@ -259,8 +251,9 @@ export const Settings: React.FC<SettingsProps> = ({
                         value={editedProfile.biometrics.height}
                         onChange={(e) => setEditedProfile({
                             ...editedProfile,
-                            biometrics: { ...editedProfile.biometrics, height: Number(e.target.value) }
+                            biometrics: { ...editedProfile.biometrics, height: e.target.value === '' ? 0 : Number(e.target.value) }
                         })}
+                        placeholder="175"
                         min={100}
                         max={250}
                     />
@@ -271,17 +264,8 @@ export const Settings: React.FC<SettingsProps> = ({
             <Modal
                 isOpen={isEditingLifestyle}
                 onClose={() => setIsEditingLifestyle(false)}
+                onSave={handleSaveLifestyle}
                 title="Modifica Stile di Vita"
-                footer={
-                    <div className="flex gap-3">
-                        <Button variant="secondary" onClick={() => setIsEditingLifestyle(false)} className="flex-1">
-                            Annulla
-                        </Button>
-                        <Button onClick={handleSaveLifestyle} icon={<Save size={18} />} className="flex-1">
-                            Salva
-                        </Button>
-                    </div>
-                }
             >
                 <div className="space-y-4">
                     <Select
@@ -319,8 +303,9 @@ export const Settings: React.FC<SettingsProps> = ({
                         value={editedProfile.lifestyle.workoutFrequency}
                         onChange={(e) => setEditedProfile({
                             ...editedProfile,
-                            lifestyle: { ...editedProfile.lifestyle, workoutFrequency: Number(e.target.value) }
+                            lifestyle: { ...editedProfile.lifestyle, workoutFrequency: e.target.value === '' ? 0 : Number(e.target.value) }
                         })}
+                        placeholder="4"
                         min={0}
                         max={14}
                     />

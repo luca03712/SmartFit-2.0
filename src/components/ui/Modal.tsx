@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSave?: () => void;
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
@@ -12,83 +13,54 @@ interface ModalProps {
 export const Modal: React.FC<ModalProps> = ({
     isOpen,
     onClose,
+    onSave,
     title,
     children,
     footer
 }) => {
-    // Prevent body scroll when modal is open
-    useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [isOpen]);
-
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={onClose}
-            />
-
-            {/* Modal */}
-            <div
-                className="
-          relative w-full sm:max-w-lg 
-          max-h-[95vh] sm:max-h-[85vh]
-          bg-slate-900 
-          rounded-t-3xl sm:rounded-2xl
-          shadow-2xl shadow-black/50
-          animate-slide-up sm:animate-fade-in
-          flex flex-col
-          border border-slate-700/50
-        "
-            >
-                {/* Header */}
-                <div className="
-          flex items-center justify-between 
-          px-6 py-4 
-          border-b border-slate-700/50
-          shrink-0
-        ">
-                    <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col">
+            {/* Sticky Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-900 sticky top-0 z-10">
+                <button
+                    onClick={onClose}
+                    className="text-indigo-400 font-medium py-2 px-1 min-w-[70px] text-left"
+                >
+                    Annulla
+                </button>
+                <h2 className="text-lg font-semibold text-white text-center flex-1">
+                    {title}
+                </h2>
+                {onSave ? (
+                    <button
+                        onClick={onSave}
+                        className="text-indigo-400 font-semibold py-2 px-1 min-w-[70px] text-right"
+                    >
+                        Salva
+                    </button>
+                ) : (
                     <button
                         onClick={onClose}
-                        className="
-              p-2 rounded-full 
-              text-slate-400 hover:text-white 
-              hover:bg-slate-700/50
-              transition-colors
-            "
+                        className="p-2 rounded-full hover:bg-slate-800 transition-colors min-w-[70px] flex justify-end"
                     >
-                        <X size={20} />
+                        <X size={24} className="text-slate-400" />
                     </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto px-6 py-4">
-                    {children}
-                </div>
-
-                {/* Footer */}
-                {footer && (
-                    <div className="
-            px-6 py-4 
-            border-t border-slate-700/50
-            bg-slate-800/50
-            shrink-0
-          ">
-                        {footer}
-                    </div>
                 )}
             </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4 pb-32">
+                {children}
+            </div>
+
+            {/* Sticky Footer (if provided and no onSave in header) */}
+            {footer && !onSave && (
+                <div className="sticky bottom-0 p-4 border-t border-slate-700 bg-slate-900 pb-safe">
+                    {footer}
+                </div>
+            )}
         </div>
     );
 };

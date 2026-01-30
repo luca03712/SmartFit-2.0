@@ -3,14 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import {
     Barcode,
     ScanLine,
-    Save,
     Package,
     Scale
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { Button } from '../ui/Button';
 import { CheckboxGroup } from '../ui/CheckboxGroup';
 import { BarcodeScanner } from './BarcodeScanner';
 import { OcrScanner } from './OcrScanner';
@@ -49,7 +47,7 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
     const [name, setName] = useState('');
     const [unit, setUnit] = useState<Unit>('g');
     const [quantity, setQuantity] = useState<number>(100);
-    const [pieceWeight, setPieceWeight] = useState<number | undefined>(undefined);
+    const [pieceWeight, setPieceWeight] = useState<number>(0);
     const [categories, setCategories] = useState<string[]>([]);
     const [nutrition, setNutrition] = useState<NutritionPer100g>(initialNutrition);
     const [nutriScore, setNutriScore] = useState<NutriScore>('C');
@@ -65,7 +63,7 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
                 setName(editItem.name);
                 setUnit(editItem.unit);
                 setQuantity(editItem.quantity);
-                setPieceWeight(editItem.pieceWeight);
+                setPieceWeight(editItem.pieceWeight || 0);
                 setCategories(editItem.categories);
                 setNutrition(editItem.nutritionPer100g);
                 setNutriScore(editItem.nutriScore);
@@ -73,7 +71,7 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
                 setName('');
                 setUnit('g');
                 setQuantity(100);
-                setPieceWeight(undefined);
+                setPieceWeight(0);
                 setCategories([]);
                 setNutrition(initialNutrition);
                 setNutriScore('C');
@@ -92,7 +90,7 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
 
     // Auto-suggest piece weight based on name
     useEffect(() => {
-        if (unit === 'pz' && name && !pieceWeight) {
+        if (unit === 'pz' && name && pieceWeight === 0) {
             const defaultWeight = getDefaultPieceWeight(name);
             if (defaultWeight) {
                 setPieceWeight(defaultWeight);
@@ -115,7 +113,7 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
         if (nutrition.calories <= 0) {
             newErrors.calories = 'Inserisci le calorie';
         }
-        if (unit === 'pz' && (!pieceWeight || pieceWeight <= 0)) {
+        if (unit === 'pz' && pieceWeight <= 0) {
             newErrors.pieceWeight = 'Inserisci il peso per pezzo';
         }
 
@@ -163,8 +161,8 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
     };
 
     const updateNutrition = (field: keyof NutritionPer100g, value: string) => {
-        const numValue = parseFloat(value) || 0;
-        setNutrition(prev => ({ ...prev, [field]: numValue }));
+        const numValue = value === '' ? 0 : parseFloat(value);
+        setNutrition(prev => ({ ...prev, [field]: isNaN(numValue) ? 0 : numValue }));
     };
 
     if (showBarcodeScanner) {
@@ -189,39 +187,26 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={editItem ? 'Modifica Alimento' : 'Nuovo Alimento'}
-            footer={
-                <div className="flex gap-3">
-                    <Button variant="secondary" onClick={onClose} className="flex-1">
-                        Annulla
-                    </Button>
-                    <Button onClick={handleSave} icon={<Save size={18} />} className="flex-1">
-                        Salva
-                    </Button>
-                </div>
-            }
+            onSave={handleSave}
+            title={editItem ? 'Modifica Alimento' : 'Aggiungi Alimento'}
         >
             <div className="space-y-6">
                 {/* Scanner buttons */}
                 <div className="flex gap-3">
-                    <Button
-                        variant="secondary"
+                    <button
                         onClick={() => setShowBarcodeScanner(true)}
-                        icon={<Barcode size={18} />}
-                        className="flex-1"
-                        size="sm"
+                        className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-800/50 border border-slate-600/50 text-slate-300 hover:border-indigo-500 transition-colors"
                     >
-                        Barcode
-                    </Button>
-                    <Button
-                        variant="secondary"
+                        <Barcode size={18} />
+                        <span className="text-sm">Barcode</span>
+                    </button>
+                    <button
                         onClick={() => setShowOcrScanner(true)}
-                        icon={<ScanLine size={18} />}
-                        className="flex-1"
-                        size="sm"
+                        className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-800/50 border border-slate-600/50 text-slate-300 hover:border-indigo-500 transition-colors"
                     >
-                        Etichetta OCR
-                    </Button>
+                        <ScanLine size={18} />
+                        <span className="text-sm">Etichetta OCR</span>
+                    </button>
                 </div>
 
                 {/* Name */}
@@ -247,12 +232,13 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
                         ]}
                     />
                     <Input
-                        label="Quantità Disponibile *"
+                        label="Quantità *"
                         type="number"
                         value={quantity}
-                        onChange={(e) => setQuantity(Number(e.target.value))}
+                        onChange={(e) => setQuantity(e.target.value === '' ? 0 : Number(e.target.value))}
                         min={0}
                         step={unit === 'pz' ? 1 : 5}
+                        placeholder="100"
                         error={errors.quantity}
                     />
                 </div>
@@ -262,8 +248,8 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
                     <Input
                         label="Peso per pezzo (g) *"
                         type="number"
-                        value={pieceWeight || ''}
-                        onChange={(e) => setPieceWeight(Number(e.target.value))}
+                        value={pieceWeight}
+                        onChange={(e) => setPieceWeight(e.target.value === '' ? 0 : Number(e.target.value))}
                         placeholder="es. 55 per un uovo"
                         icon={<Scale size={18} />}
                         min={1}
@@ -296,8 +282,9 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
                         <Input
                             label="Calorie (kcal) *"
                             type="number"
-                            value={nutrition.calories || ''}
+                            value={nutrition.calories}
                             onChange={(e) => updateNutrition('calories', e.target.value)}
+                            placeholder="0"
                             step="1"
                             min={0}
                             error={errors.calories}
@@ -305,40 +292,45 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
                         <Input
                             label="Proteine (g)"
                             type="number"
-                            value={nutrition.protein || ''}
+                            value={nutrition.protein}
                             onChange={(e) => updateNutrition('protein', e.target.value)}
+                            placeholder="0"
                             step="0.1"
                             min={0}
                         />
                         <Input
                             label="Carboidrati (g)"
                             type="number"
-                            value={nutrition.carbs || ''}
+                            value={nutrition.carbs}
                             onChange={(e) => updateNutrition('carbs', e.target.value)}
+                            placeholder="0"
                             step="0.1"
                             min={0}
                         />
                         <Input
                             label="Grassi (g)"
                             type="number"
-                            value={nutrition.fat || ''}
+                            value={nutrition.fat}
                             onChange={(e) => updateNutrition('fat', e.target.value)}
+                            placeholder="0"
                             step="0.1"
                             min={0}
                         />
                         <Input
                             label="Zuccheri (g)"
                             type="number"
-                            value={nutrition.sugar || ''}
+                            value={nutrition.sugar}
                             onChange={(e) => updateNutrition('sugar', e.target.value)}
+                            placeholder="0"
                             step="0.1"
                             min={0}
                         />
                         <Input
                             label="Sale (g)"
                             type="number"
-                            value={nutrition.salt || ''}
+                            value={nutrition.salt}
                             onChange={(e) => updateNutrition('salt', e.target.value)}
+                            placeholder="0"
                             step="0.01"
                             min={0}
                         />
