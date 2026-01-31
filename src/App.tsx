@@ -10,7 +10,8 @@ import type {
   UserProfile,
   PantryItem,
   MacroTargets,
-  MealCategory
+  MealCategory,
+  DailyConsumed
 } from './types';
 import { generateWeeklyPlan, DAYS_OF_WEEK, type DayOfWeek } from './utils/dietGenerator';
 
@@ -28,16 +29,27 @@ function App() {
   const [consumedMeals, setConsumedMeals] = useLocalStorage<Record<string, string[]>>('smartfit_consumed_weekly', {});
   const [waterIntake, setWaterIntake] = useLocalStorage<number>('smartfit_water', 0);
   const [lastResetDate, setLastResetDate] = useLocalStorage<string>('smartfit_last_reset', '');
+  const [dailyConsumed, setDailyConsumed] = useLocalStorage<DailyConsumed>('smartfit_daily_consumed', {
+    date: '',
+    macros: { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  });
 
   // UI State
   const [currentTab, setCurrentTab] = useState('dashboard');
 
-  // Check if we need to reset daily tracking (water resets daily)
+  // Check if we need to reset daily tracking (water and consumed macros reset daily)
   const today = new Date().toISOString().split('T')[0];
   if (lastResetDate !== today) {
     setWaterIntake(0);
     setLastResetDate(today);
-    // Note: consumed meals persist for the week - user can manually reset
+  }
+
+  // Auto-reset consumed macros if date changes
+  if (dailyConsumed.date !== today) {
+    setDailyConsumed({
+      date: today,
+      macros: { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    });
   }
 
   // Get current day of week in Italian
@@ -53,24 +65,8 @@ function App() {
     return generateWeeklyPlan(pantryItems, profile.targets, profile.lifestyle.workoutFrequency);
   }, [pantryItems, profile.targets, profile.lifestyle.workoutFrequency, profile.onboardingComplete]);
 
-  // Calculate consumed nutrition for today
-  const consumedNutrition = useMemo<MacroTargets>(() => {
-    if (!weeklyPlan) {
-      return { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    }
-
-    const todayMeals = weeklyPlan.days[todayDay] || [];
-    const consumed = todayMeals
-      .filter(meal => todayConsumed.includes(meal.category))
-      .reduce((acc, meal) => ({
-        calories: acc.calories + meal.totalNutrition.calories,
-        protein: acc.protein + meal.totalNutrition.protein,
-        carbs: acc.carbs + meal.totalNutrition.carbs,
-        fat: acc.fat + meal.totalNutrition.fat
-      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-
-    return consumed;
-  }, [weeklyPlan, todayDay, todayConsumed]);
+  // Use persisted consumed nutrition (no longer recalculating from meals)
+  const consumedNutrition = dailyConsumed.macros;
 
   // Handlers
   const handleOnboardingComplete = (newProfile: UserProfile) => {
@@ -90,13 +86,48 @@ function App() {
   };
 
   const handleToggleMealConsumed = (day: DayOfWeek, category: MealCategory) => {
+    if (!weeklyPlan) return;
+
+    const dayMeals = weeklyPlan.days[day] || [];
+    const meal = dayMeals.find(m => m.category === category);
+    if (!meal) return;
+
+    const isCurrentlyConsumed = (consumedMeals[day] || []).includes(category);
+
+    // Update consumed meals list
     setConsumedMeals(prev => {
-      const dayMeals = prev[day] || [];
-      if (dayMeals.includes(category)) {
-        return { ...prev, [day]: dayMeals.filter(c => c !== category) };
+      const dayMealsList = prev[day] || [];
+      if (isCurrentlyConsumed) {
+        return { ...prev, [day]: dayMealsList.filter(c => c !== category) };
       }
-      return { ...prev, [day]: [...dayMeals, category] };
+      return { ...prev, [day]: [...dayMealsList, category] };
     });
+
+    // Only update dailyConsumed if toggling today's meal
+    if (day === todayDay) {
+      setDailyConsumed(prev => {
+        const newMacros = { ...prev.macros };
+
+        if (isCurrentlyConsumed) {
+          // Subtract meal macros
+          newMacros.calories = Math.max(0, newMacros.calories - meal.totalNutrition.calories);
+          newMacros.protein = Math.max(0, newMacros.protein - meal.totalNutrition.protein);
+          newMacros.carbs = Math.max(0, newMacros.carbs - meal.totalNutrition.carbs);
+          newMacros.fat = Math.max(0, newMacros.fat - meal.totalNutrition.fat);
+        } else {
+          // Add meal macros
+          newMacros.calories += meal.totalNutrition.calories;
+          newMacros.protein += meal.totalNutrition.protein;
+          newMacros.carbs += meal.totalNutrition.carbs;
+          newMacros.fat += meal.totalNutrition.fat;
+        }
+
+        return {
+          date: today,
+          macros: newMacros
+        };
+      });
+    }
   };
 
   const handleAddWater = () => {

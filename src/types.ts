@@ -100,3 +100,9 @@ export interface DailyTracking {
     waterIntake: number;
     notes: string;
 }
+
+// Daily consumed macros with automatic reset
+export interface DailyConsumed {
+    date: string;
+    macros: MacroTargets;
+}

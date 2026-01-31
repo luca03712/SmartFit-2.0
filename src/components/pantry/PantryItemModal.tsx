@@ -83,10 +83,10 @@ export const PantryItemModal: React.FC<PantryItemModalProps> = ({
     // Auto-calculate Nutri-Score when nutrition changes
     useEffect(() => {
         if (nutrition.calories > 0) {
-            const score = calculateNutriScore(nutrition);
+            const score = calculateNutriScore(nutrition, categories);
             setNutriScore(score);
         }
-    }, [nutrition]);
+    }, [nutrition, categories]);
 
     // Auto-suggest piece weight based on name
     useEffect(() => {

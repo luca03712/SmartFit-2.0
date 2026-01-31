@@ -4,7 +4,24 @@ import type { NutritionPer100g, NutriScore } from '../types';
  * Calculate Nutri-Score based on nutrition values per 100g
  * Simplified algorithm based on the official Nutri-Score methodology
  */
-export function calculateNutriScore(nutrition: NutritionPer100g): NutriScore {
+export function calculateNutriScore(nutrition: NutritionPer100g, categories?: string[]): NutriScore {
+    // Priority Rule: Force 'A' rating for whole foods and fresh ingredients
+    // This prevents natural foods like bananas or zucchini from being downgraded
+    // due to natural sugar or low protein content
+    if (categories && categories.length > 0) {
+        const wholeFoodCategories = ['Frutta', 'Verdura', 'Ortaggi', 'Ingredienti Freschi'];
+        const isWholeFood = categories.some(cat =>
+            wholeFoodCategories.some(wfc => cat.toLowerCase().includes(wfc.toLowerCase()))
+        );
+
+        // Exception: Only bypass 'A' if salt content is abnormally high (processed/preserved)
+        const hasHighSalt = nutrition.salt > 1.0;
+
+        if (isWholeFood && !hasHighSalt) {
+            return 'A';
+        }
+    }
+
     // Negative points (bad nutrients)
     let negativePoints = 0;
 
